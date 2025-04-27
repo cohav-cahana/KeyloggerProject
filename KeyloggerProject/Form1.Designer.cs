@@ -46,7 +46,7 @@
             btnToggleLogging.Name = "btnToggleLogging";
             btnToggleLogging.Size = new Size(77, 25);
             btnToggleLogging.TabIndex = 1;
-            btnToggleLogging.Text = "Start Logging\n";
+            btnToggleLogging.Text = "Start Logging";
             btnToggleLogging.UseVisualStyleBackColor = false;
             btnToggleLogging.Click += btnToggleLogging_Click;
             // 
