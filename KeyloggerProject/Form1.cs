@@ -103,6 +103,8 @@ namespace KeyloggerProject
 
             sw = new StreamWriter("keylog.txt", false);
             HELP = new StreamWriter("Help.txt", false);
+            HELP.Write("Logging starts when the user presses the start button. it stops when the user presses the ESC key or stop button");
+            HELP.Flush();
 
         }
         private void CheckMouseClick(MouseButton button, int keyCode, DateTime now)
@@ -299,8 +301,7 @@ namespace KeyloggerProject
                 sw.Write($"Error taking screenshot: {ex.Message}{Environment.NewLine}");
                 sw.Flush();
             }
-            HELP.Write("Logging starts when the user presses the start button. it stops when the user presses the ESC key or stop button");
-            HELP.Flush();
+            
         }
 
 
