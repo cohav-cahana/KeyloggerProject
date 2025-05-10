@@ -2,6 +2,7 @@
 // Cohav Cahana, ID:211703897
 // Maria Badarne, ID: 324189299
 
+
 namespace KeyloggerProject
 {
     using System;
@@ -56,6 +57,7 @@ namespace KeyloggerProject
             public int X;
             public int Y;
         }
+    
 
         [DllImport("user32.dll")]
         public static extern bool GetCursorPos(out POINT lpPoint);
